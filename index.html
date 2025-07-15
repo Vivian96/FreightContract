@@ -453,7 +453,7 @@
                 formData.append('file', selectedFile);
 
                 // Make API call
-                const response = await fetch(`${API_BASE_URL}/ContractAnalysis/analyze`, {
+                const response = await fetch(`${API_BASE_URL}/`, {
                     method: 'POST',
                     body: formData
                 });
