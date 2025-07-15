@@ -383,8 +383,8 @@
     </div>
 
     <script>
-        const API_BASE_URL = 'https://freight-contract-analyzer-api-cjagedhkdybdfxcb.eastus2-01.azurewebsites.net/'; // Update this to match your API URL
-       
+        const API_BASE_URL = 'https://freight-contract-analyzer-api-cjagedhkdybdfxcb.eastus2-01.azurewebsites.net/';
+        
         const uploadArea = document.getElementById('uploadArea');
         const fileInput = document.getElementById('fileInput');
         const analyzeBtn = document.getElementById('analyzeBtn');
@@ -453,17 +453,19 @@
                 formData.append('file', selectedFile);
 
                 // Make API call
-                const response = await fetch(`${API_BASE_URL}/analyze`, {
+                const response = await fetch(`${API_BASE_URL}/ContractAnalysis/analyze`, {
                     method: 'POST',
                     body: formData
                 });
 
                 const data = await response.json();
 
-                if (data.success) {
-                    displayResults(data.data);
+                if (response.ok && data.overall_risk_level) {
+                    // New format - direct response
+                    displayResults(data);
                 } else {
-                    showError(data.message || 'Analysis failed');
+                    // Error response
+                    showError(data.message || data.error || 'Analysis failed');
                 }
             } catch (error) {
                 console.error('Error:', error);
@@ -474,19 +476,25 @@
             }
         }
 
-        function displayResults(analysisData) {
-            // Update summary statistics
-            document.getElementById('totalChecked').textContent = analysisData.summary.totalLoopholesChecked;
-            document.getElementById('loopholesFound').textContent = analysisData.summary.loopholesDetected;
-            document.getElementById('overallScore').textContent = Math.round(analysisData.summary.overallScore);
+        function displayResults(data) {
+            // New format - direct response
+            const totalChecked = data.detected_issues?.length || 0;
+            const loopholesFound = data.detected_issues?.filter(i => i.detected).length || 0;
+            const overallScore = Math.round(data.overall_score || 0);
+            const overallRiskLevel = data.overall_risk_level || 'Low';
+            
+            document.getElementById('totalChecked').textContent = totalChecked;
+            document.getElementById('loopholesFound').textContent = loopholesFound;
+            document.getElementById('overallScore').textContent = overallScore;
 
             // Update risk level
             const riskLevel = document.getElementById('riskLevel');
-            riskLevel.textContent = analysisData.summary.overallRiskLevel + ' Risk';
-            riskLevel.className = 'risk-level risk-' + analysisData.summary.overallRiskLevel.toLowerCase();
+            riskLevel.textContent = overallRiskLevel + ' Risk';
+            riskLevel.className = 'risk-level risk-' + overallRiskLevel.toLowerCase();
 
-            // Display loopholes
-            displayLoopholes(analysisData.detectedLoopholes);
+            // Display issues
+            const issuesToDisplay = data.detected_issues || [];
+            displayLoopholes(issuesToDisplay);
 
             // Show results
             results.style.display = 'block';
@@ -496,37 +504,62 @@
             const grid = document.getElementById('loopholesGrid');
             grid.innerHTML = '';
 
-            loopholes.forEach(loophole => {
+            loopholes.forEach(issue => {
                 const card = document.createElement('div');
-                card.className = `loophole-card ${loophole.isDetected ? 'detected' : ''}`;
+                
+                // New format properties
+                const isDetected = issue.detected;
+                const issueName = issue.issue_name;
+                const description = getLoopholeDescription(issueName);
+                const confidence = issue.confidence;
+                const severity = issue.severity;
+                const recommendation = issue.recommendation;
+                const evidence = issue.evidence || [];
+                
+                card.className = `loophole-card ${isDetected ? 'detected' : ''}`;
                 
                 card.innerHTML = `
                     <div class="loophole-header">
-                        <div class="loophole-title">${loophole.loopholeName}</div>
-                        <div class="detection-status ${loophole.isDetected ? 'status-detected' : 'status-clear'}">
-                            ${loophole.isDetected ? 'DETECTED' : 'CLEAR'}
+                        <div class="loophole-title">${issueName}</div>
+                        <div class="detection-status ${isDetected ? 'status-detected' : 'status-clear'}">
+                            ${isDetected ? 'DETECTED' : 'CLEAR'}
                         </div>
                     </div>
-                    <div class="loophole-description">${loophole.description}</div>
+                    <div class="loophole-description">${description}</div>
                     <div class="confidence-score">
-                        Confidence: ${Math.round(loophole.confidenceScore * 100)}% | 
-                        Severity: ${loophole.severity}
+                        Confidence: ${Math.round(confidence * 100)}% | 
+                        Severity: ${severity}
                     </div>
-                    ${loophole.matchedKeywords.length > 0 ? `
+                    ${evidence.length > 0 ? `
                         <div class="matched-keywords">
-                            ${loophole.matchedKeywords.map(keyword => 
-                                `<span class="keyword-tag">${keyword}</span>`
-                            ).join('')}
+                            <strong>Evidence:</strong><br>
+                            ${evidence.map(ev => `<span class="keyword-tag">${ev}</span>`).join('')}
                         </div>
                     ` : ''}
                     <div class="recommendation">
                         <div class="recommendation-title">💡 Recommendation</div>
-                        <div class="recommendation-text">${loophole.recommendation}</div>
+                        <div class="recommendation-text">${recommendation}</div>
                     </div>
                 `;
                 
                 grid.appendChild(card);
             });
+        }
+
+        function getLoopholeDescription(loopholeName) {
+            const descriptions = {
+                "Ambiguous Service Scope": "Contract lacks clear definition of services to be provided",
+                "Lack of SLA Metrics": "Missing specific service level agreements and performance metrics",
+                "Hidden Accessorial Charges": "Additional fees and charges are not clearly disclosed",
+                "One-sided Liability Terms": "Liability clauses heavily favor one party",
+                "Poor Termination Clauses": "Termination terms are unclear or heavily favor one party",
+                "No Volume Flexibility": "Contract doesn't account for volume fluctuations",
+                "Vague Force Majeure": "Force majeure clauses are too vague or missing",
+                "Limited Dispute Resolution": "Inadequate or unclear dispute resolution procedures",
+                "Inadequate Data Sharing": "Poor data sharing and visibility provisions",
+                "Not Future-Proofed": "Contract doesn't address future regulatory requirements"
+            };
+            return descriptions[loopholeName] || "Contract analysis issue identified";
         }
 
         function showError(message) {
