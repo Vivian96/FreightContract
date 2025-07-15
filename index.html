@@ -302,6 +302,138 @@
             display: none;
         }
 
+        /* Modal styles for contract viewer */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 2% auto;
+            padding: 0;
+            border-radius: 10px;
+            width: 95%;
+            height: 90%;
+            max-width: 1200px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px 10px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-title {
+            font-size: 1.5em;
+            font-weight: bold;
+        }
+
+        .close {
+            color: white;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: opacity 0.3s;
+        }
+
+        .close:hover {
+            opacity: 0.7;
+        }
+
+        .modal-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .contract-text {
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 5px;
+            border: 1px solid #dee2e6;
+        }
+
+        .highlighted-text {
+            background-color: #fff3cd;
+            border: 2px solid #ffc107;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+
+        .issue-info {
+            background: #f0f2ff;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
+        }
+
+        .issue-info h3 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .issue-info p {
+            color: #666;
+            margin: 5px 0;
+        }
+
+        .evidence-keywords {
+            margin-top: 10px;
+        }
+
+        .evidence-keywords strong {
+            color: #333;
+        }
+
+        .clickable-card {
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .clickable-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+
+        .non-clickable-card {
+            opacity: 0.7;
+            cursor: not-allowed;
+            position: relative;
+        }
+
+        .non-clickable-card::after {
+            content: "No relevant content found";
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background: #ff4757;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.7em;
+            font-weight: bold;
+        }
+
         @media (max-width: 768px) {
             .container {
                 margin: 10px;
@@ -382,8 +514,26 @@
         </div>
     </div>
 
+    <!-- Modal for contract viewer -->
+    <div id="contractModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title" id="modalTitle">Contract Analysis</div>
+                <span class="close" id="closeModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="issueInfo" class="issue-info">
+                    <!-- Issue information will be populated here -->
+                </div>
+                <div id="contractText" class="contract-text">
+                    <!-- Contract text will be populated here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
-        const API_BASE_URL = 'https://freight-contract-analyzer-api-cjagedhkdybdfxcb.eastus2-01.azurewebsites.net/api';
+        const API_BASE_URL = 'https://freight-contract-analyzer-api-cjagedhkdybdfxcb.eastus2-01.azurewebsites.net/api'; // Update this to match your API URL
         
         const uploadArea = document.getElementById('uploadArea');
         const fileInput = document.getElementById('fileInput');
@@ -392,7 +542,16 @@
         const results = document.getElementById('results');
         const errorMessage = document.getElementById('errorMessage');
         
+        // Modal elements
+        const modal = document.getElementById('contractModal');
+        const closeModal = document.getElementById('closeModal');
+        const modalTitle = document.getElementById('modalTitle');
+        const issueInfo = document.getElementById('issueInfo');
+        const contractText = document.getElementById('contractText');
+        
         let selectedFile = null;
+        let originalContractText = '';
+        let currentAnalysisData = null;
 
         // Upload area event listeners
         uploadArea.addEventListener('click', () => fileInput.click());
@@ -401,6 +560,24 @@
         uploadArea.addEventListener('drop', handleDrop);
         fileInput.addEventListener('change', handleFileSelect);
         analyzeBtn.addEventListener('click', analyzeContract);
+
+        // Modal event listeners
+        closeModal.addEventListener('click', () => {
+            modal.style.display = 'none';
+        });
+
+        window.addEventListener('click', (event) => {
+            if (event.target === modal) {
+                modal.style.display = 'none';
+            }
+        });
+
+        // Handle escape key to close modal
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && modal.style.display === 'block') {
+                modal.style.display = 'none';
+            }
+        });
 
         function handleDragOver(e) {
             e.preventDefault();
@@ -461,6 +638,10 @@
                 const data = await response.json();
 
                 if (response.ok && data.overall_risk_level) {
+                    // Store the analysis data and original text
+                    currentAnalysisData = data;
+                    originalContractText = data.original_text || '';
+                    
                     // New format - direct response
                     displayResults(data);
                 } else {
@@ -516,7 +697,17 @@
                 const recommendation = issue.recommendation;
                 const evidence = issue.evidence || [];
                 
-                card.className = `loophole-card ${isDetected ? 'detected' : ''}`;
+                // Check if this card has relevant content in the contract
+                const hasRelevantContent = checkForRelevantContent(issue);
+                
+                card.className = `loophole-card ${hasRelevantContent ? 'clickable-card' : 'non-clickable-card'} ${isDetected ? 'detected' : ''}`;
+                
+                // Add click event listener only if there's relevant content
+                if (hasRelevantContent) {
+                    card.addEventListener('click', () => {
+                        openContractModal(issue);
+                    });
+                }
                 
                 card.innerHTML = `
                     <div class="loophole-header">
@@ -527,7 +718,7 @@
                     </div>
                     <div class="loophole-description">${description}</div>
                     <div class="confidence-score">
-                        Confidence: ${Math.round(confidence * 100)}% | 
+                        Confidence: ${100-(Math.round(confidence * 100))}% | 
                         Severity: ${severity}
                     </div>
                     ${evidence.length > 0 ? `
@@ -546,17 +737,243 @@
             });
         }
 
+        function checkForRelevantContent(issue) {
+            // If we have the original contract text, check for relevant keywords
+            if (originalContractText && originalContractText.trim()) {
+                // Check if evidence keywords exist in the contract
+                if (issue.evidence && issue.evidence.length > 0) {
+                    return issue.evidence.some(keyword => {
+                        if (keyword && keyword.trim()) {
+                            return originalContractText.toLowerCase().includes(keyword.toLowerCase());
+                        }
+                        return false;
+                    });
+                }
+                
+                // If no evidence keywords, check for issue-specific keywords
+                const issueKeywords = getIssueKeywords(issue.issue_name);
+                return issueKeywords.some(keyword => 
+                    originalContractText.toLowerCase().includes(keyword.toLowerCase())
+                );
+            }
+            
+            // If no original contract text, allow all cards (fallback to sample text)
+            return true;
+        }
+
+        function getIssueKeywords(issueName) {
+            // Define keywords that would indicate relevant content for each issue type
+            const issueKeywords = {
+                "Ambiguous Service Scope": ["services", "scope", "deliverables", "transportation", "pickup", "delivery", "freight"],
+                "Lack of SLA Metrics": ["sla", "service level", "performance", "metrics", "standards", "kpi", "delivery time", "response time"],
+                "Hidden or Vague Accessorial Charges": ["accessorial", "additional charges", "fees", "surcharges", "detention", "fuel", "extra", "charges"],
+                "One-sided Liability Terms": ["liability", "indemnify", "hold harmless", "damages", "insurance", "claims", "responsible"],
+                "Poor Termination Clauses": ["termination", "terminate", "end", "cancel", "notice", "breach", "default"],
+                "No Volume Flexibility Clauses": ["volume", "minimum", "maximum", "quantity", "shipments", "commitment", "flexibility"],
+                "No Force Majeure Specificity": ["force majeure", "act of god", "natural disaster", "circumstances beyond control", "unforeseeable"],
+                "Limited Dispute Resolution Mechanism": ["dispute", "arbitration", "mediation", "litigation", "court", "resolution", "governing law"],
+                "Inadequate Data Sharing Requirements": ["data", "information", "tracking", "reporting", "visibility", "sharing", "access"],
+                "Not Future-Proofed": ["regulatory", "compliance", "laws", "regulations", "amendments", "changes", "updates"]
+            };
+            
+            return issueKeywords[issueName] || [];
+        }
+
+        function openContractModal(issue) {
+            // Set modal title
+            modalTitle.textContent = `Contract Analysis - ${issue.issue_name}`;
+            
+            // Populate issue information
+            issueInfo.innerHTML = `
+                <h3>${issue.issue_name}</h3>
+                <p><strong>Status:</strong> ${issue.detected ? 'DETECTED' : 'CLEAR'}</p>
+                <p><strong>Confidence:</strong> ${Math.round(issue.confidence * 100)}%</p>
+                <p><strong>Severity:</strong> ${issue.severity}</p>
+                <p><strong>Description:</strong> ${getLoopholeDescription(issue.issue_name)}</p>
+                ${issue.evidence && issue.evidence.length > 0 ? `
+                    <div class="evidence-keywords">
+                        <strong>Evidence Keywords:</strong><br>
+                        ${issue.evidence.map(ev => `<span class="keyword-tag">${ev}</span>`).join('')}
+                    </div>
+                ` : ''}
+                <p><strong>Recommendation:</strong> ${issue.recommendation}</p>
+            `;
+            
+            // Highlight text in contract only if there's actual relevant content
+            let highlightedText = originalContractText;
+            let hasHighlights = false;
+            
+            // If we have evidence keywords, highlight them
+            if (issue.evidence && issue.evidence.length > 0 && originalContractText) {
+                issue.evidence.forEach(keyword => {
+                    if (keyword && keyword.trim()) {
+                        // Create a case-insensitive regex
+                        const regex = new RegExp(`(${escapeRegExp(keyword.trim())})`, 'gi');
+                        if (originalContractText.match(regex)) {
+                            highlightedText = highlightedText.replace(regex, '<span class="highlighted-text">$1</span>');
+                            hasHighlights = true;
+                        }
+                    }
+                });
+            }
+            
+            // If no evidence keywords found relevant content, try issue-specific keywords
+            if (!hasHighlights && originalContractText) {
+                const issueKeywords = getIssueKeywords(issue.issue_name);
+                issueKeywords.forEach(keyword => {
+                    if (keyword && keyword.trim()) {
+                        const regex = new RegExp(`(${escapeRegExp(keyword.trim())})`, 'gi');
+                        if (originalContractText.match(regex)) {
+                            highlightedText = highlightedText.replace(regex, '<span class="highlighted-text">$1</span>');
+                            hasHighlights = true;
+                        }
+                    }
+                });
+            }
+            
+            // If no original text available or no highlights found, show sample text
+            if (!originalContractText || !hasHighlights) {
+                highlightedText = getSampleContractText(issue.issue_name);
+            }
+            
+            contractText.innerHTML = highlightedText;
+            
+            // Show modal
+            modal.style.display = 'block';
+        }
+
+        function escapeRegExp(string) {
+            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+
+        function getSampleContractText(issueName) {
+            // Sample contract text with highlighted sections for demonstration
+            const sampleTexts = {
+                "Ambiguous Service Scope": `
+FREIGHT TRANSPORTATION AGREEMENT
+
+This agreement is entered into between XYZ Logistics (Carrier) and ABC Company (Shipper).
+
+<span class="highlighted-text">SERVICES: The Carrier agrees to provide transportation services for the shipment of goods as requested by the Shipper. Services include pickup, transportation, and delivery of freight</span> from origin to destination points as specified in shipping orders.
+
+The Carrier shall maintain appropriate insurance coverage and comply with all applicable regulations. <span class="highlighted-text">Additional services may be provided as mutually agreed upon</span>.
+
+Payment terms: Net 30 days from invoice date.
+
+This agreement shall remain in effect for a period of one year from the effective date.
+                `,
+                "Lack of SLA Metrics": `
+FREIGHT TRANSPORTATION AGREEMENT
+
+Service Level Agreement:
+<span class="highlighted-text">The Carrier will provide reliable transportation services</span> and make reasonable efforts to meet delivery schedules. <span class="highlighted-text">Performance will be measured based on overall customer satisfaction</span>.
+
+Delivery timeframes will be communicated upon booking. The Carrier will notify the Shipper of any delays that may impact delivery schedules.
+
+Quality standards shall be maintained throughout the transportation process.
+                `,
+                "Hidden or Vague Accessorial Charges": `
+FREIGHT TRANSPORTATION AGREEMENT
+
+Pricing and Charges:
+Base transportation rates are as agreed upon in the rate schedule. <span class="highlighted-text">Additional charges may apply for special services, handling requirements, or unforeseen circumstances</span>.
+
+<span class="highlighted-text">Accessorial charges include but are not limited to: detention time, extra stops, residential delivery, and special equipment requirements</span>. Specific rates for these services will be provided upon request.
+
+The Shipper agrees to pay all applicable charges within the specified payment terms.
+                `,
+                "One-sided Liability Terms": `
+FREIGHT TRANSPORTATION AGREEMENT
+
+Liability and Insurance:
+<span class="highlighted-text">The Carrier's liability for loss or damage shall be limited to the lesser of the actual value of the goods or $50,000 per occurrence</span>. The Shipper assumes full responsibility for proper packaging and labeling of goods.
+
+<span class="highlighted-text">The Shipper shall indemnify and hold harmless the Carrier from any claims, damages, or expenses arising from the transportation of goods</span>, including but not limited to third-party claims.
+
+The Carrier maintains cargo insurance as required by law but makes no additional warranties regarding coverage.
+                `,
+                "Poor Termination Clauses": `
+FREIGHT TRANSPORTATION AGREEMENT
+
+Termination:
+<span class="highlighted-text">Either party may terminate this agreement at any time with or without cause</span>. <span class="highlighted-text">Termination shall be effective immediately upon written notice</span>.
+
+Upon termination, all outstanding obligations shall become immediately due and payable. <span class="highlighted-text">The Carrier may retain any goods in transit until all charges are paid in full</span>.
+
+No refunds shall be provided for services already rendered or commitments made prior to termination.
+                `,
+                "No Volume Flexibility Clauses": `
+FREIGHT TRANSPORTATION AGREEMENT
+
+Volume Commitments:
+<span class="highlighted-text">The Shipper agrees to provide a minimum of 100 shipments per month</span>. <span class="highlighted-text">Failure to meet minimum volume requirements may result in rate adjustments or contract termination</span>.
+
+All rates and terms are based on the agreed-upon volume commitments. <span class="highlighted-text">Changes to shipping volumes must be approved in writing by both parties</span>.
+
+Seasonal fluctuations in shipping volumes may be accommodated at the Carrier's discretion.
+                `,
+                "No Force Majeure Specificity": `
+FREIGHT TRANSPORTATION AGREEMENT
+
+Force Majeure:
+<span class="highlighted-text">Neither party shall be liable for any failure to perform due to circumstances beyond their reasonable control</span>. <span class="highlighted-text">Such circumstances include but are not limited to acts of God, natural disasters, and other unforeseeable events</span>.
+
+<span class="highlighted-text">The affected party shall notify the other party as soon as practicable of any force majeure event</span>. Performance shall be suspended during the continuation of such circumstances.
+
+Normal performance shall resume as soon as reasonably possible after the force majeure event has ceased.
+                `,
+                "Limited Dispute Resolution Mechanism": `
+FREIGHT TRANSPORTATION AGREEMENT
+
+Dispute Resolution:
+<span class="highlighted-text">Any disputes arising under this agreement shall be resolved through negotiation between the parties</span>. <span class="highlighted-text">If negotiation fails, disputes may be submitted to arbitration or court proceedings</span>.
+
+<span class="highlighted-text">The parties agree that disputes shall be resolved in accordance with the laws of the state where the Carrier is headquartered</span>.
+
+Each party shall bear their own costs and expenses in connection with dispute resolution.
+                `,
+                "Inadequate Data Sharing Requirements": `
+FREIGHT TRANSPORTATION AGREEMENT
+
+Data and Information Sharing:
+<span class="highlighted-text">The Carrier will provide basic shipment tracking information upon request</span>. <span class="highlighted-text">Additional reporting may be available subject to technical capabilities and mutual agreement</span>.
+
+<span class="highlighted-text">The Shipper may access shipment status through the Carrier's standard tracking system</span>. Real-time updates and detailed analytics may be provided as part of premium service offerings.
+
+Both parties agree to maintain confidentiality of all shared information and data.
+                `,
+                "Not Future-Proofed": `
+FREIGHT TRANSPORTATION AGREEMENT
+
+Regulatory Compliance:
+<span class="highlighted-text">The Carrier agrees to comply with all current applicable laws and regulations</span>. <span class="highlighted-text">This agreement shall be governed by regulations in effect at the time of execution</span>.
+
+<span class="highlighted-text">Any changes to laws or regulations that affect the terms of this agreement shall be addressed through contract amendments as necessary</span>.
+
+Both parties acknowledge their responsibility to stay informed of relevant regulatory changes in the transportation industry.
+                `
+            };
+            
+            return sampleTexts[issueName] || `
+Sample contract text for ${issueName}:
+
+<span class="highlighted-text">This section contains text relevant to the identified issue</span>. The contract analyzer has detected potential concerns in this area that require attention.
+
+Please review the specific terms and conditions related to this issue and consider implementing the recommended improvements to strengthen your contract.
+            `;
+        }
+
         function getLoopholeDescription(loopholeName) {
             const descriptions = {
                 "Ambiguous Service Scope": "Contract lacks clear definition of services to be provided",
                 "Lack of SLA Metrics": "Missing specific service level agreements and performance metrics",
-                "Hidden Accessorial Charges": "Additional fees and charges are not clearly disclosed",
+                "Hidden or Vague Accessorial Charges": "Additional fees and charges are not clearly disclosed",
                 "One-sided Liability Terms": "Liability clauses heavily favor one party",
                 "Poor Termination Clauses": "Termination terms are unclear or heavily favor one party",
-                "No Volume Flexibility": "Contract doesn't account for volume fluctuations",
-                "Vague Force Majeure": "Force majeure clauses are too vague or missing",
-                "Limited Dispute Resolution": "Inadequate or unclear dispute resolution procedures",
-                "Inadequate Data Sharing": "Poor data sharing and visibility provisions",
+                "No Volume Flexibility Clauses": "Contract doesn't account for volume fluctuations",
+                "No Force Majeure Specificity": "Force majeure clauses are too vague or missing",
+                "Limited Dispute Resolution Mechanism": "Inadequate or unclear dispute resolution procedures",
+                "Inadequate Data Sharing Requirements": "Poor data sharing and visibility provisions",
                 "Not Future-Proofed": "Contract doesn't address future regulatory requirements"
             };
             return descriptions[loopholeName] || "Contract analysis issue identified";
