@@ -383,7 +383,7 @@
     </div>
 
     <script>
-        const API_BASE_URL = 'https://freight-contract-analyzer-api-cjagedhkdybdfxcb.eastus2-01.azurewebsites.net/';
+        const API_BASE_URL = 'https://freight-contract-analyzer-api-cjagedhkdybdfxcb.eastus2-01.azurewebsites.net';
         
         const uploadArea = document.getElementById('uploadArea');
         const fileInput = document.getElementById('fileInput');
@@ -453,7 +453,7 @@
                 formData.append('file', selectedFile);
 
                 // Make API call
-                const response = await fetch(`${API_BASE_URL}/`, {
+                const response = await fetch(`${API_BASE_URL}/ContractAnalysis/analyze`, {
                     method: 'POST',
                     body: formData
                 });
